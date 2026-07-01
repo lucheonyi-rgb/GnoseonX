@@ -6,7 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export * from './apiError';
-export * from './gnoseonUser';
-export * from './healthStatus';
-export * from './joinInput';
+export interface ApiError {
+  error: string;
+}

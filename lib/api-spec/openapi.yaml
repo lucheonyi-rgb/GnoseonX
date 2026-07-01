@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: users
+    description: User operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /users/join:
+    post:
+      operationId: joinGnoseon
+      tags: [users]
+      summary: Join Gnoseon
+      description: Register a new user and return their profile with generated display name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinInput"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GnoseonUser"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +66,42 @@ components:
           type: string
       required:
         - status
-
+    JoinInput:
+      type: object
+      required:
+        - name
+        - email
+        - password
+      properties:
+        name:
+          type: string
+          minLength: 2
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+    GnoseonUser:
+      type: object
+      required:
+        - id
+        - name
+        - displayName
+        - email
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+    ApiError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string

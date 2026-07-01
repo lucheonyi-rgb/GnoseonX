@@ -10,14 +10,14 @@ interface LoginPageProps {
 
 export const LoginPage = ({ onLogin }: LoginPageProps) => {
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<"main" | "email">("main");
+  const [step, setStep] = useState<"main" | "join">("main");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   const handleGoogleLogin = () => {
     setLoading(true);
-    // Simulate OAuth flow
     setTimeout(() => {
       setLoading(false);
       onLogin({
@@ -29,18 +29,47 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
     }, 1500);
   };
 
-  const handleEmailLogin = (e: React.FormEvent) => {
+  const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!email || !password) {
+    if (!name || !email || !password) {
       setError("Please fill in all fields.");
       return;
     }
+    if (name.trim().length < 2) {
+      setError("Name must be at least 2 characters.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/users/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Something went wrong.");
+        setLoading(false);
+        return;
+      }
+      onLogin({
+        ...currentUserData,
+        id: data.id,
+        name: data.displayName,
+        email: data.email,
+        image: "",
+        status: "online",
+      });
+    } catch {
+      setError("Connection error. Please try again.");
       setLoading(false);
-      onLogin({ ...currentUserData, name: email.split("@")[0], email });
-    }, 1000);
+    }
   };
 
   return (
@@ -50,7 +79,6 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
         <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-violet/5 blur-3xl" />
         <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full bg-neon/5 blur-3xl" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-violet/3 blur-3xl" />
-        {/* ASCII grid */}
         <div className="absolute inset-0 opacity-[0.03]" style={{
           backgroundImage: "radial-gradient(circle, #9b30ff 1px, transparent 1px)",
           backgroundSize: "40px 40px"
@@ -58,7 +86,6 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
       </div>
 
       <div className="relative z-10 w-full max-w-md px-4">
-        {/* Card */}
         <div className="bg-surface rounded-3xl p-8 neu-card border border-violet/10 animate-slide-up">
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
@@ -111,14 +138,14 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
                 <div className="flex-1 h-px bg-surface-3" />
               </div>
 
-              {/* Email option */}
+              {/* Join button */}
               <button
-                onClick={() => setStep("email")}
-                className="w-full py-3 px-4 rounded-2xl bg-surface-2 neu-btn border border-white/5
-                           text-text-secondary text-sm hover:border-violet/20 hover:text-text-primary
+                onClick={() => setStep("join")}
+                className="w-full py-3 px-4 rounded-2xl bg-violet/10 neu-btn border border-violet/20
+                           text-violet text-sm font-semibold hover:bg-violet/20 hover:border-violet/40
                            transition-all duration-200 active:neu-btn-active"
               >
-                Sign in with email
+                Join to Gnoseon
               </button>
 
               {/* Guest mode */}
@@ -132,17 +159,36 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
           ) : (
             <>
               <button
-                onClick={() => setStep("main")}
+                onClick={() => { setStep("main"); setError(""); }}
                 className="flex items-center gap-1 text-text-muted text-xs mb-4 hover:text-text-primary transition-colors"
               >
                 ← Back
               </button>
 
-              <h1 className="text-xl font-semibold text-text-primary text-center mb-6">
-                Sign in with email
+              <h1 className="text-xl font-semibold text-text-primary text-center mb-1">
+                Join to Gnoseon
               </h1>
+              <p className="text-text-muted text-xs text-center mb-6 font-mono">
+                You'll get a unique ID like{" "}
+                <span className="text-violet">Gnoseon#AB1234</span>
+              </p>
 
-              <form onSubmit={handleEmailLogin} className="space-y-3">
+              <form onSubmit={handleJoin} className="space-y-3">
+                <div>
+                  <label className="text-text-muted text-xs font-mono mb-1 block">
+                    USERNAME
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Andi"
+                    className="w-full px-4 py-3 rounded-2xl bg-surface-2 neu-input border border-white/5
+                               text-text-primary text-sm placeholder:text-text-muted
+                               focus:outline-none focus:border-violet/40 transition-all"
+                    autoFocus
+                  />
+                </div>
                 <div>
                   <label className="text-text-muted text-xs font-mono mb-1 block">
                     EMAIL
@@ -155,7 +201,6 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
                     className="w-full px-4 py-3 rounded-2xl bg-surface-2 neu-input border border-white/5
                                text-text-primary text-sm placeholder:text-text-muted
                                focus:outline-none focus:border-violet/40 transition-all"
-                    autoFocus
                   />
                 </div>
                 <div>
@@ -166,7 +211,7 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="min. 6 characters"
                     className="w-full px-4 py-3 rounded-2xl bg-surface-2 neu-input border border-white/5
                                text-text-primary text-sm placeholder:text-text-muted
                                focus:outline-none focus:border-violet/40 transition-all"
@@ -183,9 +228,16 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
                   className="w-full py-3 rounded-2xl bg-violet text-white font-semibold
                              shadow-glow-v hover:bg-violet-600 transition-all duration-200
                              disabled:opacity-50 disabled:cursor-not-allowed
-                             active:scale-95 mt-2"
+                             active:scale-95 mt-2 flex items-center justify-center gap-2"
                 >
-                  {loading ? "Signing in..." : "Sign in"}
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Joining...
+                    </>
+                  ) : (
+                    "Join Gnoseon ⚡"
+                  )}
                 </button>
               </form>
             </>

@@ -5,9 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface HealthStatus {
-  status: string;
-}
 
 export interface JoinInput {
   /** @minLength 2 */
@@ -16,15 +13,3 @@ export interface JoinInput {
   /** @minLength 6 */
   password: string;
 }
-
-export interface GnoseonUser {
-  id: string;
-  name: string;
-  displayName: string;
-  email: string;
-}
-
-export interface ApiError {
-  error: string;
-}
-
