@@ -1,7 +1,8 @@
 import { createServer } from "http";
 import { Server as SocketServer } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
-import { db, messagesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { db, messagesTable, dmsTable } from "@workspace/db";
 import app from "./app";
 import { logger } from "./lib/logger";
 
@@ -26,6 +27,12 @@ io.on("connection", (socket) => {
     socket.rooms.forEach((r) => { if (r !== socket.id) socket.leave(r); });
     socket.join(roomId);
     logger.info({ socketId: socket.id, roomId }, "Joined room");
+  });
+
+  // Join personal user room for DM sidebar updates
+  socket.on("join_user_room", (userId: string) => {
+    socket.join(`user:${userId}`);
+    logger.info({ socketId: socket.id, userId }, "Joined user room");
   });
 
   // Send a message — save to DB, broadcast to room
@@ -74,6 +81,25 @@ io.on("connection", (socket) => {
       };
 
       io.to(roomId).emit("new_message", saved);
+
+      // If it's a DM, notify both participants' personal rooms for sidebar updates
+      if (payload.dmId) {
+        const dmRows = await db.select().from(dmsTable).where(eq(dmsTable.id, payload.dmId)).limit(1);
+        if (dmRows.length > 0) {
+          const dm = dmRows[0];
+          const update = {
+            dmId: dm.id,
+            lastMessage: {
+              content: payload.content,
+              senderId: payload.senderId,
+              senderName: payload.senderName,
+              createdAt: saved.createdAt,
+            },
+          };
+          io.to(`user:${dm.user1Id}`).emit("dm:updated", update);
+          io.to(`user:${dm.user2Id}`).emit("dm:updated", update);
+        }
+      }
     } catch (err) {
       logger.error({ err }, "Failed to save message");
       socket.emit("error", { message: "Failed to send message" });

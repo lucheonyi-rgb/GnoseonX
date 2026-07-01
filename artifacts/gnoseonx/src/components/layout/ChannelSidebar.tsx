@@ -20,6 +20,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { currentUserData, mockUsers } from "@/lib/mockData";
+import { getSocket } from "@/lib/socket";
 import type { DirectMessage } from "@/types";
 import type { User } from "@/types";
 
@@ -209,15 +210,38 @@ const DMSidebar = () => {
     } catch {}
   }, [user?.id]);
 
-  // Fetch on mount and when activeDM changes (e.g. after sending a message)
+  // Fetch on mount
   useEffect(() => {
     fetchDMs();
   }, [fetchDMs]);
 
-  // Also refresh when returning to dms view
+  // Real-time: listen for dm:updated from server and update sidebar instantly
   useEffect(() => {
-    const interval = setInterval(fetchDMs, 5000);
-    return () => clearInterval(interval);
+    const socket = getSocket();
+
+    const handleDMUpdated = (update: {
+      dmId: string;
+      lastMessage: { content: string; senderId: string; senderName: string; createdAt: string };
+    }) => {
+      setApiDMs((prev) => {
+        const idx = prev.findIndex((d) => d.id === update.dmId);
+        if (idx === -1) {
+          // New DM we don't have yet — refresh from API
+          fetchDMs();
+          return prev;
+        }
+        const updated = {
+          ...prev[idx],
+          lastMessage: update.lastMessage,
+        };
+        // Move to top and return new array
+        const rest = prev.filter((_, i) => i !== idx);
+        return [updated, ...rest];
+      });
+    };
+
+    socket.on("dm:updated", handleDMUpdated);
+    return () => { socket.off("dm:updated", handleDMUpdated); };
   }, [fetchDMs]);
 
   const filtered = apiDMs.filter((dm) =>

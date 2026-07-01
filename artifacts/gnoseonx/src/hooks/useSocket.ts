@@ -23,8 +23,18 @@ export function useSocket() {
     return () => { socket.off("new_message", handleNewMessage); };
   }, [addMessage]);
 
+  // Join personal user room so server can push DM updates
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    getSocket().emit("join_user_room", currentUser.id);
+  }, [currentUser?.id]);
+
   const joinRoom = useCallback((roomId: string) => {
     getSocket().emit("join_room", roomId);
+  }, []);
+
+  const joinUserRoom = useCallback((userId: string) => {
+    getSocket().emit("join_user_room", userId);
   }, []);
 
   const sendMessage = useCallback((payload: {
@@ -41,5 +51,5 @@ export function useSocket() {
     getSocket().emit("send_message", payload);
   }, []);
 
-  return { joinRoom, sendMessage };
+  return { joinRoom, joinUserRoom, sendMessage };
 }
