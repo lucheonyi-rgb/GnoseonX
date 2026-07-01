@@ -2,17 +2,9 @@
 
 import React, { useState, useRef, useCallback } from "react";
 import { useAppStore } from "@/store/appStore";
+import { useSocket } from "@/hooks/useSocket";
 import {
-  Plus,
-  Smile,
-  Send,
-  Image,
-  FileVideo,
-  Paperclip,
-  X,
-  Mic,
-  Gift,
-  AtSign,
+  Plus, Smile, Send, Image, FileVideo, Paperclip, X, Mic,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import type { Message } from "@/types";
@@ -32,10 +24,12 @@ export const MessageInput = () => {
   const [isDragging, setIsDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { addMessage, activeChannel, activeDM, currentUser, addNotification } = useAppStore();
+
+  const { activeChannel, activeDM, currentUser } = useAppStore();
+  const { sendMessage } = useSocket();
 
   const user = currentUser || currentUserData;
-  const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+  const MAX_SIZE = 10 * 1024 * 1024;
 
   const placeholder =
     activeChannel
@@ -70,10 +64,7 @@ export const MessageInput = () => {
     e.target.value = "";
   };
 
-  const removeAttachment = () => {
-    setAttachedFile(null);
-    setPreview(null);
-  };
+  const removeAttachment = () => { setAttachedFile(null); setPreview(null); };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -95,7 +86,7 @@ export const MessageInput = () => {
           : "file"
       : "text";
 
-    const newMessage: Message = {
+    const payload = {
       id: uuidv4(),
       content: text.trim(),
       senderId: user.id,
@@ -105,46 +96,22 @@ export const MessageInput = () => {
       dmId: activeDM?.id,
       type: msgType,
       mediaUrl: preview && preview !== "video" && preview !== "file" ? preview : undefined,
-      reactions: [],
-      edited: false,
-      createdAt: new Date(),
     };
 
-    addMessage(newMessage);
+    sendMessage(payload);
+
     setText("");
     setAttachedFile(null);
     setPreview(null);
     setShowEmoji(false);
-
-    // Simulate incoming notification for DMs
-    if (activeDM) {
-      const other = activeDM.participants.find((p) => p.id !== user.id);
-      if (other) {
-        setTimeout(() => {
-          addNotification({
-            id: uuidv4(),
-            type: "message",
-            title: other.name,
-            body: `↩ replied to your message`,
-            fromUser: other,
-            read: false,
-            createdAt: new Date(),
-          });
-        }, 1800);
-      }
-    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
-    // Auto resize
     const ta = e.target;
     ta.style.height = "auto";
     ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
@@ -152,7 +119,6 @@ export const MessageInput = () => {
 
   return (
     <div className="px-4 pb-4 pt-2 flex-shrink-0">
-      {/* Drag overlay */}
       {isDragging && (
         <div
           className="fixed inset-0 z-50 bg-violet/10 border-2 border-dashed border-violet rounded-2xl flex items-center justify-center pointer-events-none"
@@ -162,7 +128,6 @@ export const MessageInput = () => {
         </div>
       )}
 
-      {/* Attachment preview */}
       {preview && (
         <div className="mb-2 relative inline-flex">
           {preview === "video" ? (
@@ -190,7 +155,6 @@ export const MessageInput = () => {
         </div>
       )}
 
-      {/* Emoji picker */}
       {showEmoji && (
         <div className="mb-2 p-3 bg-surface-2 rounded-2xl border border-violet/10 shadow-neu-card">
           <div className="flex flex-wrap gap-2">
@@ -207,14 +171,13 @@ export const MessageInput = () => {
         </div>
       )}
 
-      {/* Attach menu */}
       {showAttach && (
         <div className="mb-2 p-2 bg-surface-2 rounded-2xl border border-violet/10 shadow-neu-card flex gap-2 animate-slide-up">
           <AttachOption
             icon={<Image size={16} />}
             label="Image"
             color="text-neon"
-            onClick={() => { fileRef.current?.click(); (fileRef.current as any).accept = "image/*"; }}
+            onClick={() => { fileRef.current?.click(); (fileRef.current as HTMLInputElement).accept = "image/*"; }}
           />
           <AttachOption
             icon={<FileVideo size={16} />}
@@ -231,7 +194,6 @@ export const MessageInput = () => {
         </div>
       )}
 
-      {/* Main input area */}
       <div
         className={`flex items-end gap-2 bg-surface rounded-2xl px-3 py-2 border ${
           isDragging ? "border-violet" : "border-violet/10 hover:border-violet/20"
@@ -239,7 +201,6 @@ export const MessageInput = () => {
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDrop={handleDrop}
       >
-        {/* Plus / attach */}
         <button
           onClick={() => { setShowAttach(!showAttach); setShowEmoji(false); }}
           className={`flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
@@ -251,7 +212,6 @@ export const MessageInput = () => {
           <Plus size={18} />
         </button>
 
-        {/* Text area */}
         <textarea
           ref={textareaRef}
           rows={1}
@@ -263,7 +223,6 @@ export const MessageInput = () => {
           className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none resize-none min-h-[24px] max-h-[120px] leading-6 py-0.5"
         />
 
-        {/* Emoji */}
         <button
           onClick={() => { setShowEmoji(!showEmoji); setShowAttach(false); }}
           className={`flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
@@ -275,7 +234,6 @@ export const MessageInput = () => {
           <Smile size={18} />
         </button>
 
-        {/* Mic */}
         <button
           className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-text-muted hover:text-violet hover:bg-violet/10 transition-all"
           disabled={disabled}
@@ -284,7 +242,6 @@ export const MessageInput = () => {
           <Mic size={18} />
         </button>
 
-        {/* Send */}
         <button
           onClick={handleSend}
           disabled={disabled || (!text.trim() && !attachedFile)}
@@ -298,7 +255,6 @@ export const MessageInput = () => {
           <Send size={16} />
         </button>
 
-        {/* Hidden file input */}
         <input
           ref={fileRef}
           type="file"
@@ -316,15 +272,9 @@ export const MessageInput = () => {
 };
 
 const AttachOption = ({
-  icon,
-  label,
-  color,
-  onClick,
+  icon, label, color, onClick,
 }: {
-  icon: React.ReactNode;
-  label: string;
-  color: string;
-  onClick: () => void;
+  icon: React.ReactNode; label: string; color: string; onClick: () => void;
 }) => (
   <button
     onClick={onClick}
