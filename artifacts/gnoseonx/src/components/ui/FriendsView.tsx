@@ -148,11 +148,36 @@ export const FriendsView = () => {
 };
 
 const FriendRow = ({ friend }: { friend: FriendEntry }) => {
-  const { setActiveDM, setActiveView, directMessages } = useAppStore();
+  const { currentUser, directMessages, setDirectMessages, setActiveDM, setActiveView } = useAppStore();
+  const [dmLoading, setDMLoading] = useState(false);
 
-  const startDM = () => {
-    const dm = directMessages.find((d) => d.participants.some((p) => p.id === friend.id));
-    if (dm) { setActiveDM(dm); setActiveView("dms"); }
+  const startDM = async () => {
+    if (!currentUser) return;
+    setDMLoading(true);
+    try {
+      const res = await fetch("/api/dms/open", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fromUserId: currentUser.id, toUserId: friend.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const existing = directMessages.find((d) => d.id === data.id);
+        const dm = existing ?? {
+          id: data.id,
+          participants: [
+            currentUser,
+            { id: friend.id, name: friend.displayName, email: "" },
+          ],
+          unreadCount: 0,
+          createdAt: new Date(),
+        };
+        if (!existing) setDirectMessages([dm, ...directMessages]);
+        setActiveDM(dm);
+        setActiveView("dms");
+      }
+    } catch {}
+    setDMLoading(false);
   };
 
   return (
@@ -170,7 +195,9 @@ const FriendRow = ({ friend }: { friend: FriendEntry }) => {
       </div>
 
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <ActionBtn onClick={startDM} title="Message"><MessageSquare size={15} /></ActionBtn>
+        <ActionBtn onClick={startDM} title="Message" loading={dmLoading}>
+          {dmLoading ? <Loader2 size={15} className="animate-spin" /> : <MessageSquare size={15} />}
+        </ActionBtn>
         <ActionBtn title="Voice Call"><Phone size={15} /></ActionBtn>
         <ActionBtn title="Video Call"><Video size={15} /></ActionBtn>
       </div>
@@ -179,8 +206,8 @@ const FriendRow = ({ friend }: { friend: FriendEntry }) => {
 };
 
 const ActionBtn = ({
-  children, onClick, title,
-}: { children: React.ReactNode; onClick?: () => void; title: string }) => (
+  children, onClick, title, loading,
+}: { children: React.ReactNode; onClick?: () => void; title: string; loading?: boolean }) => (
   <button
     onClick={onClick}
     title={title}

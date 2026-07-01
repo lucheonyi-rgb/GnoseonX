@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAppStore } from "@/store/appStore";
 import {
   Hash,
@@ -19,7 +19,8 @@ import {
   Star,
   MapPin,
 } from "lucide-react";
-import { mockDMs, currentUserData, mockUsers } from "@/lib/mockData";
+import { currentUserData, mockUsers } from "@/lib/mockData";
+import type { DirectMessage } from "@/types";
 import type { User } from "@/types";
 
 export const ChannelSidebar = () => {
@@ -161,16 +162,67 @@ const ChannelItem = ({
   );
 };
 
-const DMSidebar = () => {
-  const { activeDM, setActiveDM, setActiveView, currentUser } = useAppStore();
-  const user = currentUser || currentUserData;
-  const dms = mockDMs;
-  const [search, setSearch] = useState("");
+interface ApiDM {
+  id: string;
+  otherId: string;
+  otherDisplayName: string;
+  lastMessage: { content: string; senderId: string; senderName: string; createdAt: string } | null;
+  createdAt: string;
+}
 
-  const filtered = dms.filter((dm) => {
-    const other = dm.participants.find((p) => p.id !== user.id);
-    return other?.name.toLowerCase().includes(search.toLowerCase());
-  });
+const DMSidebar = () => {
+  const { activeDM, setActiveDM, setActiveView, setDirectMessages, directMessages, currentUser } = useAppStore();
+  const user = currentUser || currentUserData;
+  const [search, setSearch] = useState("");
+  const [apiDMs, setApiDMs] = useState<ApiDM[]>([]);
+
+  const fetchDMs = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(`/api/dms?userId=${user.id}`);
+      if (res.ok) {
+        const data: ApiDM[] = await res.json();
+        setApiDMs(data);
+        // Sync store
+        const dms: DirectMessage[] = data.map((d) => ({
+          id: d.id,
+          participants: [
+            { id: user.id, name: user.name, email: "" },
+            { id: d.otherId, name: d.otherDisplayName, email: "" },
+          ],
+          lastMessage: d.lastMessage
+            ? {
+                id: d.id,
+                content: d.lastMessage.content,
+                senderId: d.lastMessage.senderId,
+                senderName: d.lastMessage.senderName,
+                type: "text" as const,
+                edited: false,
+                createdAt: new Date(d.lastMessage.createdAt),
+              }
+            : undefined,
+          unreadCount: 0,
+          createdAt: new Date(d.createdAt),
+        }));
+        setDirectMessages(dms);
+      }
+    } catch {}
+  }, [user?.id]);
+
+  // Fetch on mount and when activeDM changes (e.g. after sending a message)
+  useEffect(() => {
+    fetchDMs();
+  }, [fetchDMs]);
+
+  // Also refresh when returning to dms view
+  useEffect(() => {
+    const interval = setInterval(fetchDMs, 5000);
+    return () => clearInterval(interval);
+  }, [fetchDMs]);
+
+  const filtered = apiDMs.filter((dm) =>
+    dm.otherDisplayName.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="w-60 bg-bg-2 flex flex-col h-full border-r border-violet/10">
@@ -204,16 +256,33 @@ const DMSidebar = () => {
         <p className="text-[10px] font-mono uppercase tracking-wider text-text-muted px-2 py-1">
           Direct Messages
         </p>
+        {filtered.length === 0 && (
+          <p className="text-[10px] text-text-muted px-2 py-3 text-center font-mono">
+            No conversations yet
+          </p>
+        )}
         {filtered.map((dm) => {
-          const other = dm.participants.find((p) => p.id !== user.id) || dm.participants[0];
           const active = activeDM?.id === dm.id;
+          const storeDM = directMessages.find((d) => d.id === dm.id);
+
+          const handleOpen = () => {
+            const dmObj: DirectMessage = storeDM ?? {
+              id: dm.id,
+              participants: [
+                { id: user.id, name: user.name, email: "" },
+                { id: dm.otherId, name: dm.otherDisplayName, email: "" },
+              ],
+              unreadCount: 0,
+              createdAt: new Date(dm.createdAt),
+            };
+            setActiveDM(dmObj);
+            setActiveView("dms");
+          };
+
           return (
             <button
               key={dm.id}
-              onClick={() => {
-                setActiveDM(dm);
-                setActiveView("dms");
-              }}
+              onClick={handleOpen}
               className={`w-full flex items-center gap-3 px-2 py-2 rounded-xl transition-all group ${
                 active ? "bg-surface-3 text-text-primary" : "text-text-muted hover:bg-surface/60 hover:text-text-secondary"
               }`}
@@ -221,26 +290,16 @@ const DMSidebar = () => {
               <div className="relative flex-shrink-0">
                 <div className={`w-8 h-8 rounded-2xl flex items-center justify-center text-sm font-bold
                   ${active ? "bg-violet/30 text-violet" : "bg-surface text-text-secondary"}`}>
-                  {other.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={other.image} alt={other.name} className="w-full h-full rounded-2xl object-cover" />
-                  ) : (
-                    other.name.charAt(0)
-                  )}
+                  {dm.otherDisplayName.replace("Gnoseon#", "").charAt(0)}
                 </div>
-                <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-bg-2 status-${other.status || "offline"}`} />
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-bg-2 status-online" />
               </div>
               <div className="flex-1 min-w-0 text-left">
-                <p className="text-xs font-medium truncate">{other.name}</p>
+                <p className="text-xs font-medium truncate">{dm.otherDisplayName}</p>
                 {dm.lastMessage && (
                   <p className="text-[10px] text-text-muted truncate">{dm.lastMessage.content}</p>
                 )}
               </div>
-              {(dm.unreadCount ?? 0) > 0 && (
-                <span className="w-5 h-5 bg-lava text-white text-[9px] font-bold rounded-full flex items-center justify-center flex-shrink-0">
-                  {dm.unreadCount}
-                </span>
-              )}
             </button>
           );
         })}
