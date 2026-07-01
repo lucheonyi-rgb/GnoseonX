@@ -9,6 +9,8 @@ import { ChatArea } from "@/components/chat/ChatArea";
 import { CallModal } from "@/components/call/CallModal";
 import { StatusModal } from "@/components/status/StatusModal";
 import { NotificationPanel } from "@/components/ui/NotificationPanel";
+import { CreateServerModal } from "@/components/ui/CreateServerModal";
+import { UserProfileModal } from "@/components/ui/UserProfileModal";
 import { MobileNav } from "./MobileNav";
 
 export const AppShell = () => {
@@ -73,6 +75,8 @@ export const AppShell = () => {
       {/* Modals */}
       {showCallModal && <CallModal />}
       {showStatusModal && <StatusModal />}
+      <CreateServerModal />
+      <UserProfileModal />
 
       {/* Notification panel */}
       {showNotifications && (

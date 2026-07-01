@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useAppStore } from "@/store/appStore";
-import { mockUsers } from "@/lib/mockData";
+import { mockUsers, mockDMs } from "@/lib/mockData";
 import { UserPlus, Users, Clock, Ban, Search, Phone, Video, MessageSquare } from "lucide-react";
 import type { User } from "@/types";
 
@@ -93,7 +93,6 @@ export const FriendsView = () => {
 
 const FriendRow = ({ user }: { user: User }) => {
   const { setActiveDM, setActiveView } = useAppStore();
-  const { mockDMs } = require("@/lib/mockData");
 
   const statusColors: Record<string, string> = {
     online: "status-online",
