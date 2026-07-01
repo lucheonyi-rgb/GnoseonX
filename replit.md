@@ -1,36 +1,46 @@
-# [Project name]
+# GnoseonX
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A Discord-style real-time chat platform with neumorphic dark design, status stories, voice/video calls, and location sharing — running entirely on mock data.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- Workflow: `artifacts/gnoseonx: web` — starts the Vite dev server for the frontend
+- `pnpm --filter @workspace/gnoseonx run dev` — run frontend manually (port auto-assigned)
 - `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Frontend: React 19 + Vite + Tailwind v4 (neumorphic dark theme)
+- State: Zustand (`artifacts/gnoseonx/src/store/appStore.ts`)
+- Data: 100% mock data, no backend or database needed
+- Fonts: Inter + JetBrains Mono (Google Fonts)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/gnoseonx/` — the main frontend artifact (react-vite, previewPath: `/`)
+- `artifacts/gnoseonx/src/index.css` — source of truth for the GnoseonX theme (CSS vars + Tailwind v4 @theme)
+- `artifacts/gnoseonx/src/lib/mockData.ts` — all mock data (users, servers, messages, DMs, notifications)
+- `artifacts/gnoseonx/src/store/appStore.ts` — global Zustand state
+- `artifacts/gnoseonx/src/types/index.ts` — shared TypeScript types
+- `artifacts/gnoseonx/src/components/` — all UI components (layout, auth, chat, call, status, ui)
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- All data is mock/in-memory — no API server or database needed for the current feature set
+- Zustand for global state management (not React Query) since there's no real API
+- Tailwind v4 with `@theme inline` to map custom CSS vars (--violet, --bg, --neu-*) to utility classes
+- `"use client"` directives from the original Next.js app are harmless no-ops in Vite (React components are always client-side)
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Login (mock auth, any credentials work)
+- Discord-like chat with servers, channels, and direct messages
+- Status stories (ephemeral user status updates)
+- Voice/video call modal
+- Friends list and location view
+- Notifications panel
+- Neumorphic dark purple UI with violet, neon green, and lava red accents
 
 ## User preferences
 
@@ -38,7 +48,9 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- No real backend or database — all data lives in Zustand store and resets on page refresh
+- The app uses Tailwind v4 (`@tailwindcss/vite`), NOT the legacy v3 PostCSS plugin — `postcss.config.mjs` must NOT be present
+- Custom Tailwind color utilities (e.g. `bg-bg`, `text-violet`, `shadow-neu-flat`) are defined in `src/index.css` via `@theme inline`
 
 ## Pointers
 
