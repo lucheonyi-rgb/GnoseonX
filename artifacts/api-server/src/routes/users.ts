@@ -12,6 +12,13 @@ function hashPassword(password: string): string {
   return `${salt}:${hash}`;
 }
 
+function verifyPassword(password: string, stored: string): boolean {
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+  const check = createHash("sha256").update(password + salt).digest("hex");
+  return check === hash;
+}
+
 function generateDisplayName(name: string): string {
   const prefix = name.slice(0, 2).replace(/[^a-zA-Z0-9]/g, "X").padEnd(2, "X");
   const digits = Math.floor(1000 + Math.random() * 9000).toString();
@@ -65,6 +72,47 @@ router.post("/users/join", async (req, res) => {
     res.status(201).json({ id, name: name.trim(), displayName, email: email.toLowerCase().trim() });
   } catch (err) {
     req.log.error({ err }, "Failed to create user");
+    res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+router.post("/users/login", async (req, res) => {
+  const { email, password } = req.body as {
+    email?: string;
+    password?: string;
+  };
+
+  if (!email || !password) {
+    res.status(400).json({ error: "Email and password are required." });
+    return;
+  }
+
+  try {
+    const rows = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.email, email.toLowerCase().trim()))
+      .limit(1);
+
+    if (rows.length === 0) {
+      res.status(401).json({ error: "Wrong email or password." });
+      return;
+    }
+
+    const user = rows[0];
+    if (!verifyPassword(password, user.passwordHash)) {
+      res.status(401).json({ error: "Wrong email or password." });
+      return;
+    }
+
+    res.status(200).json({
+      id: user.id,
+      name: user.name,
+      displayName: user.displayName,
+      email: user.email,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to login user");
     res.status(500).json({ error: "Internal server error." });
   }
 });
