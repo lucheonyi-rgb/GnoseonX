@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useAppStore } from "@/store/appStore";
 import { useSocket } from "@/hooks/useSocket";
+import { clearSession } from "@/App";
 import { MessageItem } from "./MessageItem";
 import { MessageInput } from "./MessageInput";
 import {
@@ -335,7 +336,7 @@ const SettingsView = () => {
         <section className="bg-surface rounded-2xl p-6 neu-card border border-lava/10">
           <h3 className="text-base font-semibold text-lava mb-4">Danger Zone</h3>
           <button
-            onClick={() => { setCurrentUser(null); window.location.reload(); }}
+            onClick={() => { clearSession(); setCurrentUser(null); window.location.reload(); }}
             className="px-4 py-2 rounded-xl bg-lava/20 text-lava text-sm font-medium border border-lava/30 hover:bg-lava/30 transition-all"
           >
             Log Out

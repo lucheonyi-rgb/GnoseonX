@@ -3,6 +3,29 @@ import { AppShell } from "@/components/layout/AppShell";
 import { LoginPage } from "@/components/auth/LoginPage";
 import { useAppStore } from "@/store/appStore";
 import { currentUserData, mockServers, mockUsers, mockDMs, mockNotifications } from "@/lib/mockData";
+import type { User } from "@/types";
+
+const SESSION_KEY = "gnoseonx_session";
+
+export function saveSession(user: User) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+}
+
+export function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+}
+
+function loadSession(): User | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as User;
+    if (!parsed.id || !parsed.name) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 export default function App() {
   const {
@@ -19,11 +42,22 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const saved = loadSession();
+    if (saved) {
+      setCurrentUser(saved);
+      setServers(mockServers);
+      setActiveServer(mockServers[0]);
+      setActiveChannel(mockServers[0].channels[0]);
+      setAllUsers(mockUsers);
+      setDirectMessages(mockDMs);
+    }
     const t = setTimeout(() => setIsLoading(false), 800);
     return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleLogin = (user: typeof currentUserData) => {
+  const handleLogin = (user: User) => {
+    saveSession(user);
     setCurrentUser(user);
     setServers(mockServers);
     setActiveServer(mockServers[0]);
