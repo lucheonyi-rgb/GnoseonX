@@ -200,14 +200,28 @@ export const MessageItem = ({ message, compact }: MessageItemProps) => {
         )}
 
         {/* Video */}
-        {message.type === "video" && (
+        {message.type === "video" && message.mediaUrl && (
+          <div className="mt-2 rounded-xl overflow-hidden max-w-sm border border-violet/10">
+            <video
+              controls
+              className="w-full rounded-xl max-h-64"
+              src={`/api/storage/objects/${message.mediaUrl.replace(/^\/objects\//, "")}`}
+            >
+              Your browser does not support video.
+            </video>
+            {message.mediaName && (
+              <p className="text-[10px] text-text-muted px-2 py-1">{message.mediaName}</p>
+            )}
+          </div>
+        )}
+        {message.type === "video" && !message.mediaUrl && (
           <div className="mt-2 rounded-xl overflow-hidden max-w-sm bg-surface-2 p-3 flex items-center gap-3 border border-violet/10">
             <div className="w-10 h-10 rounded-xl bg-violet/20 flex items-center justify-center">
               <Play size={16} className="text-violet" />
             </div>
             <div>
-              <p className="text-xs font-medium text-text-primary">Video attachment</p>
-              <p className="text-[10px] text-text-muted">Click to play</p>
+              <p className="text-xs font-medium text-text-primary">{message.mediaName ?? "Video attachment"}</p>
+              <p className="text-[10px] text-text-muted">Video unavailable</p>
             </div>
           </div>
         )}
@@ -218,9 +232,19 @@ export const MessageItem = ({ message, compact }: MessageItemProps) => {
             <div className="w-10 h-10 rounded-xl bg-violet/20 flex items-center justify-center">
               <File size={16} className="text-violet" />
             </div>
-            <div>
-              <p className="text-xs font-medium text-text-primary">File attachment</p>
-              <p className="text-[10px] text-text-muted">Click to download</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-text-primary truncate">{message.mediaName ?? "File attachment"}</p>
+              {message.mediaUrl ? (
+                <a
+                  href={`/api/storage/objects/${message.mediaUrl.replace(/^\/objects\//, "")}`}
+                  download={message.mediaName ?? true}
+                  className="text-[10px] text-violet hover:underline"
+                >
+                  Download
+                </a>
+              ) : (
+                <p className="text-[10px] text-text-muted">File unavailable</p>
+              )}
             </div>
           </div>
         )}

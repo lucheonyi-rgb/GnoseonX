@@ -4,11 +4,12 @@ import React, { useState, useRef, useCallback } from "react";
 import { useAppStore } from "@/store/appStore";
 import { useSocket } from "@/hooks/useSocket";
 import {
-  Plus, Smile, Send, Image, FileVideo, Paperclip, X, Mic, Reply,
+  Plus, Smile, Send, Image, FileVideo, Paperclip, X, Mic, Reply, Loader2,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import type { Message } from "@/types";
 import { currentUserData } from "@/lib/mockData";
+import { uploadFile } from "@/lib/uploadFile";
 
 const EMOJIS = [
   "😀","😂","🥰","😎","🤔","😅","🔥","💯","⚡","🎉",
@@ -74,7 +75,9 @@ export const MessageInput = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSend = () => {
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleSend = async () => {
     if (!text.trim() && !attachedFile) return;
     if (!activeChannel && !activeDM) return;
 
@@ -88,6 +91,28 @@ export const MessageInput = () => {
 
     const otherParticipant = activeDM?.participants.find((p) => p.id !== user.id);
 
+    let resolvedMediaUrl: string | undefined;
+    let resolvedMediaName: string | undefined;
+
+    if (attachedFile) {
+      if (attachedFile.type.startsWith("image/")) {
+        // Images: use base64 preview (fast, works for small images)
+        resolvedMediaUrl = preview && preview !== "video" && preview !== "file" ? preview : undefined;
+      } else {
+        // Videos and files: upload to object storage
+        setIsUploading(true);
+        try {
+          resolvedMediaUrl = await uploadFile(attachedFile);
+          resolvedMediaName = attachedFile.name;
+        } catch {
+          alert("Failed to upload file. Please try again.");
+          setIsUploading(false);
+          return;
+        }
+        setIsUploading(false);
+      }
+    }
+
     const payload = {
       id: uuidv4(),
       content: text.trim(),
@@ -98,7 +123,8 @@ export const MessageInput = () => {
       dmId: activeDM?.id,
       recipientId: otherParticipant?.id,
       type: msgType,
-      mediaUrl: preview && preview !== "video" && preview !== "file" ? preview : undefined,
+      mediaUrl: resolvedMediaUrl,
+      mediaName: resolvedMediaName,
       ...(replyTo ? {
         replyToId: replyTo.id,
         replyToSenderName: replyTo.senderName,
@@ -270,15 +296,15 @@ export const MessageInput = () => {
 
         <button
           onClick={handleSend}
-          disabled={disabled || (!text.trim() && !attachedFile)}
+          disabled={disabled || isUploading || (!text.trim() && !attachedFile)}
           className={`flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
-            text.trim() || attachedFile
+            (text.trim() || attachedFile) && !isUploading
               ? "bg-violet text-white shadow-glow-v hover:bg-violet-600 scale-100"
               : "text-text-muted opacity-50"
           }`}
           title="Send (Enter)"
         >
-          <Send size={16} />
+          {isUploading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
         </button>
 
         <input

@@ -62,6 +62,7 @@ export interface Message {
   dmId?: string;
   type: "text" | "image" | "video" | "file" | "system" | "call";
   mediaUrl?: string;
+  mediaName?: string;
   mediaType?: string;
   reactions?: Reaction[];
   replyTo?: Message;

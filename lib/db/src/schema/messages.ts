@@ -10,6 +10,7 @@ export const messagesTable = pgTable("gnoseon_messages", {
   dmId: text("dm_id"),
   type: text("type").notNull().default("text"),
   mediaUrl: text("media_url"),
+  mediaName: text("media_name"),
   edited: boolean("edited").notNull().default(false),
   replyToId: text("reply_to_id"),
   replyToSenderName: text("reply_to_sender_name"),

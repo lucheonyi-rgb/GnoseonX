@@ -4,6 +4,7 @@ import usersRouter from "./users";
 import messagesRouter from "./messages";
 import friendsRouter from "./friends";
 import dmsRouter from "./dms";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(usersRouter);
 router.use(messagesRouter);
 router.use(friendsRouter);
 router.use(dmsRouter);
+router.use(storageRouter);
 
 export default router;

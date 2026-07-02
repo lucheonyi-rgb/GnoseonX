@@ -57,6 +57,7 @@ io.on("connection", (socket) => {
     recipientId?: string;
     type?: string;
     mediaUrl?: string;
+    mediaName?: string;
     replyToId?: string;
     replyToSenderName?: string;
     replyToContent?: string;
@@ -75,6 +76,7 @@ io.on("connection", (socket) => {
         dmId: payload.dmId ?? null,
         type: payload.type ?? "text",
         mediaUrl: payload.mediaUrl ?? null,
+        mediaName: payload.mediaName ?? null,
         replyToId: payload.replyToId ?? null,
         replyToSenderName: payload.replyToSenderName ?? null,
         replyToContent: payload.replyToContent ?? null,
