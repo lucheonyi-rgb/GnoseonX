@@ -1,8 +1,32 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { LoginPage } from "@/components/auth/LoginPage";
 import { useAppStore } from "@/store/appStore";
+import { getSocket } from "@/lib/socket";
 import { currentUserData, mockServers, mockUsers, mockDMs, mockNotifications } from "@/lib/mockData";
+import type { User, Message } from "@/types";
+
+const SESSION_KEY = "gnoseonx_session";
+
+export function saveSession(user: User) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+}
+
+export function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+}
+
+function loadSession(): User | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as User;
+    if (!parsed.id || !parsed.name) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 export default function App() {
   const {
@@ -14,16 +38,45 @@ export default function App() {
     setAllUsers,
     setDirectMessages,
     addNotification,
+    addMessage,
   } = useAppStore();
 
   const [isLoading, setIsLoading] = useState(true);
 
+  // Register new_message listener ONCE at the app root — never in child components
+  const addMessageRef = useRef(addMessage);
+  useEffect(() => { addMessageRef.current = addMessage; }, [addMessage]);
   useEffect(() => {
-    const t = setTimeout(() => setIsLoading(false), 800);
-    return () => clearTimeout(t);
+    const socket = getSocket();
+    const handler = (data: Message & { createdAt: string }) => {
+      addMessageRef.current({
+        ...data,
+        createdAt: new Date(data.createdAt),
+        reactions: data.reactions ?? [],
+        edited: data.edited ?? false,
+      });
+    };
+    socket.on("new_message", handler);
+    return () => { socket.off("new_message", handler); };
   }, []);
 
-  const handleLogin = (user: typeof currentUserData) => {
+  useEffect(() => {
+    const saved = loadSession();
+    if (saved) {
+      setCurrentUser(saved);
+      setServers(mockServers);
+      setActiveServer(mockServers[0]);
+      setActiveChannel(mockServers[0].channels[0]);
+      setAllUsers(mockUsers);
+      setDirectMessages(mockDMs);
+    }
+    const t = setTimeout(() => setIsLoading(false), 800);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleLogin = (user: User) => {
+    saveSession(user);
     setCurrentUser(user);
     setServers(mockServers);
     setActiveServer(mockServers[0]);

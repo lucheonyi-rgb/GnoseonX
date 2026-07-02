@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAppStore } from "@/store/appStore";
 import {
   Hash,
@@ -19,7 +19,9 @@ import {
   Star,
   MapPin,
 } from "lucide-react";
-import { mockDMs, currentUserData, mockUsers } from "@/lib/mockData";
+import { currentUserData, mockUsers } from "@/lib/mockData";
+import { getSocket } from "@/lib/socket";
+import type { DirectMessage } from "@/types";
 import type { User } from "@/types";
 
 export const ChannelSidebar = () => {
@@ -161,21 +163,112 @@ const ChannelItem = ({
   );
 };
 
-const DMSidebar = () => {
-  const { activeDM, setActiveDM, setActiveView, currentUser } = useAppStore();
-  const user = currentUser || currentUserData;
-  const dms = mockDMs;
-  const [search, setSearch] = useState("");
+interface ApiDM {
+  id: string;
+  otherId: string;
+  otherDisplayName: string;
+  lastMessage: { content: string; senderId: string; senderName: string; createdAt: string } | null;
+  createdAt: string;
+}
 
-  const filtered = dms.filter((dm) => {
-    const other = dm.participants.find((p) => p.id !== user.id);
-    return other?.name.toLowerCase().includes(search.toLowerCase());
-  });
+const DMSidebar = () => {
+  const { activeDM, setActiveDM, setActiveView, setDirectMessages, directMessages, currentUser } = useAppStore();
+  const user = currentUser || currentUserData;
+  const [search, setSearch] = useState("");
+  const [apiDMs, setApiDMs] = useState<ApiDM[]>([]);
+  // dmId → unread count (only messages from others while DM is not open)
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  // Ref to track activeDM inside socket handler without stale closure
+  const activeDMRef = React.useRef(activeDM);
+  React.useEffect(() => { activeDMRef.current = activeDM; }, [activeDM]);
+
+  const fetchDMs = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(`/api/dms?userId=${user.id}`);
+      if (res.ok) {
+        const data: ApiDM[] = await res.json();
+        setApiDMs(data);
+        const dms: DirectMessage[] = data.map((d) => ({
+          id: d.id,
+          participants: [
+            { id: user.id, name: user.name, email: "" },
+            { id: d.otherId, name: d.otherDisplayName, email: "" },
+          ],
+          lastMessage: d.lastMessage
+            ? {
+                id: d.id,
+                content: d.lastMessage.content,
+                senderId: d.lastMessage.senderId,
+                senderName: d.lastMessage.senderName,
+                type: "text" as const,
+                edited: false,
+                createdAt: new Date(d.lastMessage.createdAt),
+              }
+            : undefined,
+          unreadCount: 0,
+          createdAt: new Date(d.createdAt),
+        }));
+        setDirectMessages(dms);
+      }
+    } catch {}
+  }, [user?.id]);
+
+  // Fetch on mount
+  useEffect(() => {
+    fetchDMs();
+  }, [fetchDMs]);
+
+  // Real-time: listen for dm:updated — update preview and track unread
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleDMUpdated = (update: {
+      dmId: string;
+      lastMessage: { content: string; senderId: string; senderName: string; createdAt: string };
+    }) => {
+      // Only count as unread if message is from someone else AND this DM is not currently open
+      const isActive = activeDMRef.current?.id === update.dmId;
+      const isOwnMessage = update.lastMessage.senderId === user?.id;
+
+      if (!isActive && !isOwnMessage) {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [update.dmId]: (prev[update.dmId] ?? 0) + 1,
+        }));
+      }
+
+      setApiDMs((prev) => {
+        const idx = prev.findIndex((d) => d.id === update.dmId);
+        if (idx === -1) {
+          fetchDMs();
+          return prev;
+        }
+        const updated = { ...prev[idx], lastMessage: update.lastMessage };
+        const rest = prev.filter((_, i) => i !== idx);
+        return [updated, ...rest];
+      });
+    };
+
+    socket.on("dm:updated", handleDMUpdated);
+    return () => { socket.off("dm:updated", handleDMUpdated); };
+  }, [fetchDMs, user?.id]);
+
+  const filtered = apiDMs.filter((dm) =>
+    dm.otherDisplayName.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
   return (
     <div className="w-60 bg-bg-2 flex flex-col h-full border-r border-violet/10">
       <div className="h-12 flex items-center px-4 border-b border-violet/10">
-        <h2 className="font-semibold text-sm text-text-primary">Direct Messages</h2>
+        <h2 className="font-semibold text-sm text-text-primary flex-1">Direct Messages</h2>
+        {totalUnread > 0 && (
+          <span className="w-5 h-5 bg-lava text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+            {totalUnread > 99 ? "99+" : totalUnread}
+          </span>
+        )}
       </div>
 
       <div className="px-3 py-2">
@@ -204,41 +297,69 @@ const DMSidebar = () => {
         <p className="text-[10px] font-mono uppercase tracking-wider text-text-muted px-2 py-1">
           Direct Messages
         </p>
+        {filtered.length === 0 && (
+          <p className="text-[10px] text-text-muted px-2 py-3 text-center font-mono">
+            No conversations yet
+          </p>
+        )}
         {filtered.map((dm) => {
-          const other = dm.participants.find((p) => p.id !== user.id) || dm.participants[0];
           const active = activeDM?.id === dm.id;
+          const unread = unreadCounts[dm.id] ?? 0;
+          const storeDM = directMessages.find((d) => d.id === dm.id);
+
+          const handleOpen = () => {
+            const dmObj: DirectMessage = storeDM ?? {
+              id: dm.id,
+              participants: [
+                { id: user.id, name: user.name, email: "" },
+                { id: dm.otherId, name: dm.otherDisplayName, email: "" },
+              ],
+              unreadCount: 0,
+              createdAt: new Date(dm.createdAt),
+            };
+            // Clear unread badge on open
+            setUnreadCounts((prev) => {
+              if (!prev[dm.id]) return prev;
+              const next = { ...prev };
+              delete next[dm.id];
+              return next;
+            });
+            setActiveDM(dmObj);
+            setActiveView("dms");
+          };
+
           return (
             <button
               key={dm.id}
-              onClick={() => {
-                setActiveDM(dm);
-                setActiveView("dms");
-              }}
+              onClick={handleOpen}
               className={`w-full flex items-center gap-3 px-2 py-2 rounded-xl transition-all group ${
-                active ? "bg-surface-3 text-text-primary" : "text-text-muted hover:bg-surface/60 hover:text-text-secondary"
+                active
+                  ? "bg-surface-3 text-text-primary"
+                  : unread > 0
+                    ? "text-text-primary hover:bg-surface/60"
+                    : "text-text-muted hover:bg-surface/60 hover:text-text-secondary"
               }`}
             >
               <div className="relative flex-shrink-0">
                 <div className={`w-8 h-8 rounded-2xl flex items-center justify-center text-sm font-bold
                   ${active ? "bg-violet/30 text-violet" : "bg-surface text-text-secondary"}`}>
-                  {other.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={other.image} alt={other.name} className="w-full h-full rounded-2xl object-cover" />
-                  ) : (
-                    other.name.charAt(0)
-                  )}
+                  {dm.otherDisplayName.replace("Gnoseon#", "").charAt(0)}
                 </div>
-                <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-bg-2 status-${other.status || "offline"}`} />
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-bg-2 status-online" />
               </div>
               <div className="flex-1 min-w-0 text-left">
-                <p className="text-xs font-medium truncate">{other.name}</p>
+                <p className={`text-xs truncate ${unread > 0 ? "font-bold text-text-primary" : "font-medium"}`}>
+                  {dm.otherDisplayName}
+                </p>
                 {dm.lastMessage && (
-                  <p className="text-[10px] text-text-muted truncate">{dm.lastMessage.content}</p>
+                  <p className={`text-[10px] truncate ${unread > 0 ? "text-text-secondary" : "text-text-muted"}`}>
+                    {dm.lastMessage.content}
+                  </p>
                 )}
               </div>
-              {(dm.unreadCount ?? 0) > 0 && (
-                <span className="w-5 h-5 bg-lava text-white text-[9px] font-bold rounded-full flex items-center justify-center flex-shrink-0">
-                  {dm.unreadCount}
+              {unread > 0 && !active && (
+                <span className="w-5 h-5 bg-lava text-white text-[9px] font-bold rounded-full flex items-center justify-center flex-shrink-0 animate-pulse">
+                  {unread > 99 ? "99+" : unread}
                 </span>
               )}
             </button>
