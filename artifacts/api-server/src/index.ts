@@ -54,6 +54,7 @@ io.on("connection", (socket) => {
     senderImage?: string;
     channelId?: string;
     dmId?: string;
+    recipientId?: string;
     type?: string;
     mediaUrl?: string;
     replyToId?: string;
@@ -92,6 +93,23 @@ io.on("connection", (socket) => {
 
       io.to(roomId).emit("new_message", outgoing);
       logger.info({ roomId, messageId: payload.id }, "Message broadcast");
+
+      // For DMs: notify both participants' personal rooms so sidebar badges update
+      if (payload.dmId) {
+        const dmUpdate = {
+          dmId: payload.dmId,
+          lastMessage: {
+            content: payload.content || "",
+            senderId: payload.senderId,
+            senderName: payload.senderName,
+            createdAt: new Date().toISOString(),
+          },
+        };
+        io.to(`user:${payload.senderId}`).emit("dm:updated", dmUpdate);
+        if (payload.recipientId) {
+          io.to(`user:${payload.recipientId}`).emit("dm:updated", dmUpdate);
+        }
+      }
     } catch (err) {
       logger.error({ err }, "Failed to save/broadcast message");
     }

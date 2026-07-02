@@ -86,6 +86,8 @@ export const MessageInput = () => {
           : "file"
       : "text";
 
+    const otherParticipant = activeDM?.participants.find((p) => p.id !== user.id);
+
     const payload = {
       id: uuidv4(),
       content: text.trim(),
@@ -94,6 +96,7 @@ export const MessageInput = () => {
       senderImage: user.image,
       channelId: activeChannel?.id,
       dmId: activeDM?.id,
+      recipientId: otherParticipant?.id,
       type: msgType,
       mediaUrl: preview && preview !== "video" && preview !== "file" ? preview : undefined,
       ...(replyTo ? {
