@@ -30,6 +30,13 @@ io.on("connection", (socket) => {
   logger.info({ socketId: socket.id }, "Socket connected");
 
   socket.on("join_room", (roomId: string) => {
+    // Leave all previous chat rooms (channel:* and dm:*) before joining the new one
+    for (const room of socket.rooms) {
+      if (room !== socket.id && (room.startsWith("channel:") || room.startsWith("dm:"))) {
+        socket.leave(room);
+        logger.info({ socketId: socket.id, room }, "Left room");
+      }
+    }
     socket.join(roomId);
     logger.info({ socketId: socket.id, roomId }, "Joined room");
   });
