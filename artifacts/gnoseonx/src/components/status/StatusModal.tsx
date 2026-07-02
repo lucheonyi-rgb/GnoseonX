@@ -2,9 +2,10 @@
 
 import React, { useState, useRef } from "react";
 import { useAppStore } from "@/store/appStore";
-import { X, Image, Type, Palette, Clock, Eye, Send } from "lucide-react";
-import { v4 as uuidv4 } from "uuid";
+import { X, Image, Type, Palette, Clock, Send, Loader2 } from "lucide-react";
 import type { StatusStory } from "@/types";
+import { getSocket } from "@/lib/socket";
+import { uploadFile } from "@/lib/uploadFile";
 
 const BG_COLORS = [
   { label: "Violet", value: "bg-gradient-to-br from-violet-600 to-violet-400" },
@@ -21,6 +22,8 @@ export const StatusModal = () => {
   const [text, setText] = useState("");
   const [bgColor, setBgColor] = useState(BG_COLORS[0].value);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [isPosting, setIsPosting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!showStatusModal) return null;
@@ -29,29 +32,62 @@ export const StatusModal = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) { alert("Max 10MB!"); return; }
+    setAttachedFile(file);
     const reader = new FileReader();
     reader.onload = (ev) => setImagePreview(ev.target?.result as string);
     reader.readAsDataURL(file);
   };
 
-  const handlePost = () => {
+  const handlePost = async () => {
     if (!text.trim() && !imagePreview) return;
-    const newStory: StatusStory = {
-      id: uuidv4(),
-      userId: currentUser?.id || "user-me",
-      userName: currentUser?.name || "You",
-      userImage: currentUser?.image,
-      text: text.trim() || undefined,
-      mediaUrl: imagePreview || undefined,
-      mediaType: imagePreview ? "image" : undefined,
-      bgColor,
-      createdAt: new Date(),
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      viewers: [],
-    };
-    setStories([newStory, ...stories]);
+    setIsPosting(true);
+
+    try {
+      let resolvedMediaUrl: string | undefined;
+      let resolvedMediaType: string | undefined;
+
+      if (attachedFile) {
+        resolvedMediaUrl = await uploadFile(attachedFile);
+        resolvedMediaType = attachedFile.type.startsWith("video/") ? "video" : "image";
+      }
+
+      const user = currentUser;
+      const body = {
+        userId: user?.id || "user-me",
+        userName: user?.name || "You",
+        userImage: user?.image,
+        text: text.trim() || undefined,
+        mediaUrl: resolvedMediaUrl,
+        mediaType: resolvedMediaType,
+        bgColor: tab === "text" ? bgColor : undefined,
+      };
+
+      const res = await fetch("/api/stories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        const saved = await res.json();
+        const newStory: StatusStory = {
+          ...saved,
+          createdAt: new Date(saved.createdAt),
+          expiresAt: new Date(saved.expiresAt),
+          viewers: [],
+        };
+        setStories([newStory, ...stories]);
+        getSocket().emit("story:new", saved);
+      }
+    } catch {
+      alert("Failed to post story. Please try again.");
+    } finally {
+      setIsPosting(false);
+    }
+
     setText("");
     setImagePreview(null);
+    setAttachedFile(null);
     setShowStatusModal(false);
   };
 
@@ -176,11 +212,11 @@ export const StatusModal = () => {
           {/* Post button */}
           <button
             onClick={handlePost}
-            disabled={!text.trim() && !imagePreview}
+            disabled={isPosting || (!text.trim() && !imagePreview)}
             className="w-full py-3 rounded-2xl bg-violet text-white font-semibold shadow-glow-v hover:bg-violet-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            <Send size={16} />
-            Share Status
+            {isPosting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            {isPosting ? "Posting..." : "Share Status"}
           </button>
         </div>
 

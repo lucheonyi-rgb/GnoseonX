@@ -183,6 +183,29 @@ io.on("connection", (socket) => {
     });
   });
 
+  socket.on("user:status", (payload: { userId: string; status: string; statusText?: string }) => {
+    if (!payload.userId || !payload.status) return;
+    io.emit("user:status", payload);
+    logger.info({ userId: payload.userId, status: payload.status }, "User status changed");
+  });
+
+  socket.on("story:new", (payload: {
+    id: string;
+    userId: string;
+    userName: string;
+    userImage?: string;
+    text?: string;
+    mediaUrl?: string;
+    mediaType?: string;
+    bgColor?: string;
+    createdAt: string;
+    expiresAt: string;
+  }) => {
+    if (!payload.id || !payload.userId) return;
+    io.emit("story:new", payload);
+    logger.info({ userId: payload.userId, storyId: payload.id }, "New story broadcast");
+  });
+
   socket.on("disconnect", () => {
     logger.info({ socketId: socket.id }, "Socket disconnected");
   });

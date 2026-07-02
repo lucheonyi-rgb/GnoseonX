@@ -306,13 +306,54 @@ const WelcomeView = () => {
 };
 
 const StatusView = () => {
-  const stories = mockStories;
-  const { setShowStatusModal } = useAppStore();
+  const { setShowStatusModal, stories, setStories } = useAppStore();
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetch("/api/stories")
+      .then((r) => r.json())
+      .then((data) => {
+        const real = data.map((s: {
+          id: string; userId: string; userName: string; userImage?: string;
+          text?: string; mediaUrl?: string; mediaType?: string; bgColor?: string;
+          createdAt: string; expiresAt: string;
+        }) => ({
+          ...s,
+          createdAt: new Date(s.createdAt),
+          expiresAt: new Date(s.expiresAt),
+          viewers: [],
+        }));
+        const mockIds = new Set(real.map((s: { id: string }) => s.id));
+        const deduped = [...real, ...mockStories.filter((s) => !mockIds.has(s.id))];
+        setStories(deduped);
+      })
+      .catch(() => { setStories(mockStories); })
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  React.useEffect(() => {
+    const socket = getSocket();
+    const handleStoryNew = (data: {
+      id: string; userId: string; userName: string; userImage?: string;
+      text?: string; mediaUrl?: string; bgColor?: string;
+      createdAt: string; expiresAt: string;
+    }) => {
+      useAppStore.getState().setStories([
+        { ...data, createdAt: new Date(data.createdAt), expiresAt: new Date(data.expiresAt), viewers: [] },
+        ...useAppStore.getState().stories.filter((s) => s.id !== data.id),
+      ]);
+    };
+    socket.on("story:new", handleStoryNew);
+    return () => { socket.off("story:new", handleStoryNew); };
+  }, []);
+
   return (
     <div className="flex-1 flex flex-col bg-bg overflow-hidden">
       <div className="h-12 flex items-center px-4 gap-3 border-b border-violet/10 bg-bg-2 flex-shrink-0">
         <Activity size={16} className="text-violet" />
         <h2 className="font-semibold text-sm text-text-primary">Status Stories</h2>
+        {loading && <Loader2 size={12} className="text-violet animate-spin" />}
         <button
           onClick={() => setShowStatusModal(true)}
           className="ml-auto flex items-center gap-2 px-3 py-1.5 rounded-xl bg-violet text-white text-xs font-medium hover:bg-violet-600 transition-all shadow-glow-v"
@@ -355,7 +396,17 @@ const SettingsView = () => {
             {(["online", "idle", "dnd", "offline"] as const).map((s) => (
               <button
                 key={s}
-                onClick={() => setCurrentUser({ ...user, status: s })}
+                onClick={async () => {
+                  setCurrentUser({ ...user, status: s });
+                  try {
+                    await fetch(`/api/users/${user.id}/status`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ status: s }),
+                    });
+                    getSocket().emit("user:status", { userId: user.id, status: s });
+                  } catch {}
+                }}
                 className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all border ${
                   user.status === s
                     ? "border-violet/40 bg-violet/10 text-text-primary"

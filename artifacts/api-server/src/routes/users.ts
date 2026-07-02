@@ -76,6 +76,21 @@ router.post("/users/join", async (req, res) => {
   }
 });
 
+router.patch("/users/:id/status", async (req, res) => {
+  const { id } = req.params;
+  const { status, statusText } = req.body as { status?: string; statusText?: string };
+  if (!status) { res.status(400).json({ error: "status required." }); return; }
+  const allowed = ["online", "idle", "dnd", "offline"];
+  if (!allowed.includes(status)) { res.status(400).json({ error: "Invalid status." }); return; }
+  try {
+    await db.update(usersTable).set({ status, statusText: statusText ?? null }).where(eq(usersTable.id, id));
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to update status");
+    res.status(500).json({ error: "Internal server error." });
+  }
+});
+
 router.post("/users/login", async (req, res) => {
   const { email, password } = req.body as {
     email?: string;

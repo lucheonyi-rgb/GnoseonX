@@ -8,6 +8,8 @@ export const usersTable = pgTable("gnoseon_users", {
   displayName: text("display_name").notNull(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  status: text("status").notNull().default("online"),
+  statusText: text("status_text"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
