@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useAppStore } from "@/store/appStore";
 import { useSocket } from "@/hooks/useSocket";
+import { getSocket } from "@/lib/socket";
 import { clearSession } from "@/App";
 import { MessageItem } from "./MessageItem";
 import { MessageInput } from "./MessageInput";
@@ -40,6 +41,7 @@ export const ChatArea = ({ onNotifClick }: ChatAreaProps) => {
     activeView,
     messages: storeMessages,
     setMessages,
+    addMessage,
     currentUser,
     memberListOpen,
     setMemberListOpen,
@@ -58,6 +60,21 @@ export const ChatArea = ({ onNotifClick }: ChatAreaProps) => {
     : activeDM
       ? `dm:${activeDM.id}`
       : null;
+
+  // Listen for real-time messages broadcast by the server
+  useEffect(() => {
+    const socket = getSocket();
+    const handleNewMessage = (data: Message & { createdAt: string }) => {
+      addMessage({
+        ...data,
+        reactions: data.reactions ?? [],
+        edited: data.edited ?? false,
+        createdAt: new Date(data.createdAt),
+      });
+    };
+    socket.on("new_message", handleNewMessage);
+    return () => { socket.off("new_message", handleNewMessage); };
+  }, [addMessage]);
 
   // Load message history from DB and join socket room when channel/DM changes
   useEffect(() => {
