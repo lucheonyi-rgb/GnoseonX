@@ -42,6 +42,9 @@ export const ChatArea = ({ onNotifClick }: ChatAreaProps) => {
     messages: storeMessages,
     setMessages,
     addMessage,
+    deleteMessage,
+    editMessage,
+    addReaction,
     currentUser,
     memberListOpen,
     setMemberListOpen,
@@ -61,9 +64,10 @@ export const ChatArea = ({ onNotifClick }: ChatAreaProps) => {
       ? `dm:${activeDM.id}`
       : null;
 
-  // Listen for real-time messages broadcast by the server
+  // Listen for real-time socket events
   useEffect(() => {
     const socket = getSocket();
+
     const handleNewMessage = (data: Message & { createdAt: string }) => {
       addMessage({
         ...data,
@@ -72,9 +76,31 @@ export const ChatArea = ({ onNotifClick }: ChatAreaProps) => {
         createdAt: new Date(data.createdAt),
       });
     };
+
+    const handleEdited = ({ id, content }: { id: string; content: string }) => {
+      editMessage(id, content);
+    };
+
+    const handleDeleted = ({ id }: { id: string }) => {
+      deleteMessage(id);
+    };
+
+    const handleReaction = ({ messageId, emoji, userId: uid }: { messageId: string; emoji: string; userId: string }) => {
+      addReaction(messageId, emoji, uid);
+    };
+
     socket.on("new_message", handleNewMessage);
-    return () => { socket.off("new_message", handleNewMessage); };
-  }, [addMessage]);
+    socket.on("message_edited", handleEdited);
+    socket.on("message_deleted", handleDeleted);
+    socket.on("reaction_updated", handleReaction);
+
+    return () => {
+      socket.off("new_message", handleNewMessage);
+      socket.off("message_edited", handleEdited);
+      socket.off("message_deleted", handleDeleted);
+      socket.off("reaction_updated", handleReaction);
+    };
+  }, [addMessage, editMessage, deleteMessage, addReaction]);
 
   // Load message history from DB and join socket room when channel/DM changes
   useEffect(() => {

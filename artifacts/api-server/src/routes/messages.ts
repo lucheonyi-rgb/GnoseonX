@@ -84,7 +84,10 @@ router.get("/messages", async (req, res) => {
       type: r.type,
       mediaUrl: r.mediaUrl,
       reactions: [],
-      edited: false,
+      edited: r.edited,
+      replyToId: r.replyToId,
+      replyToSenderName: r.replyToSenderName,
+      replyToContent: r.replyToContent,
       createdAt: r.createdAt.toISOString(),
     }));
 

@@ -45,6 +45,13 @@ interface AppState {
   messages: Message[];
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
+  deleteMessage: (id: string) => void;
+  editMessage: (id: string, content: string) => void;
+  addReaction: (id: string, emoji: string, userId: string) => void;
+
+  // Reply context
+  replyTo: Message | null;
+  setReplyTo: (message: Message | null) => void;
 
   // Users / Online
   onlineUsers: User[];
@@ -112,6 +119,34 @@ export const useAppStore = create<AppState>((set) => ({
       if (state.messages.some((m) => m.id === message.id)) return state;
       return { messages: [...state.messages, message] };
     }),
+  deleteMessage: (id) =>
+    set((state) => ({ messages: state.messages.filter((m) => m.id !== id) })),
+  editMessage: (id, content) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === id ? { ...m, content, edited: true } : m
+      ),
+    })),
+  addReaction: (id, emoji, userId) =>
+    set((state) => ({
+      messages: state.messages.map((m) => {
+        if (m.id !== id) return m;
+        const reactions = [...(m.reactions ?? [])];
+        const existing = reactions.find((r) => r.emoji === emoji);
+        if (existing) {
+          if (existing.users.includes(userId)) {
+            const updated = existing.users.filter((u) => u !== userId);
+            if (updated.length === 0) return { ...m, reactions: reactions.filter((r) => r.emoji !== emoji) };
+            return { ...m, reactions: reactions.map((r) => r.emoji === emoji ? { ...r, users: updated } : r) };
+          }
+          return { ...m, reactions: reactions.map((r) => r.emoji === emoji ? { ...r, users: [...r.users, userId] } : r) };
+        }
+        return { ...m, reactions: [...reactions, { emoji, users: [userId] }] };
+      }),
+    })),
+
+  replyTo: null,
+  setReplyTo: (message) => set({ replyTo: message }),
 
   onlineUsers: [],
   setOnlineUsers: (users) => set({ onlineUsers: users }),

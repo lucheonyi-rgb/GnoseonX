@@ -4,7 +4,7 @@ import React, { useState, useRef, useCallback } from "react";
 import { useAppStore } from "@/store/appStore";
 import { useSocket } from "@/hooks/useSocket";
 import {
-  Plus, Smile, Send, Image, FileVideo, Paperclip, X, Mic,
+  Plus, Smile, Send, Image, FileVideo, Paperclip, X, Mic, Reply,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import type { Message } from "@/types";
@@ -25,7 +25,7 @@ export const MessageInput = () => {
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { activeChannel, activeDM, currentUser } = useAppStore();
+  const { activeChannel, activeDM, currentUser, replyTo, setReplyTo } = useAppStore();
   const { sendMessage } = useSocket();
 
   const user = currentUser || currentUserData;
@@ -96,6 +96,11 @@ export const MessageInput = () => {
       dmId: activeDM?.id,
       type: msgType,
       mediaUrl: preview && preview !== "video" && preview !== "file" ? preview : undefined,
+      ...(replyTo ? {
+        replyToId: replyTo.id,
+        replyToSenderName: replyTo.senderName,
+        replyToContent: replyTo.content.slice(0, 100),
+      } : {}),
     };
 
     sendMessage(payload);
@@ -104,6 +109,7 @@ export const MessageInput = () => {
     setAttachedFile(null);
     setPreview(null);
     setShowEmoji(false);
+    setReplyTo(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -119,6 +125,23 @@ export const MessageInput = () => {
 
   return (
     <div className="px-4 pb-4 pt-2 flex-shrink-0">
+      {/* Reply preview bar */}
+      {replyTo && (
+        <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-2 border border-violet/20">
+          <Reply size={13} className="text-violet flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-[11px] text-violet font-medium">{replyTo.senderName} </span>
+            <span className="text-[11px] text-text-muted truncate">{replyTo.content.slice(0, 80)}</span>
+          </div>
+          <button
+            onClick={() => setReplyTo(null)}
+            className="flex-shrink-0 text-text-muted hover:text-lava transition-colors"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       {isDragging && (
         <div
           className="fixed inset-0 z-50 bg-violet/10 border-2 border-dashed border-violet rounded-2xl flex items-center justify-center pointer-events-none"

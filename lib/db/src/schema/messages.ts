@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
 
 export const messagesTable = pgTable("gnoseon_messages", {
   id: text("id").primaryKey(),
@@ -10,7 +10,12 @@ export const messagesTable = pgTable("gnoseon_messages", {
   dmId: text("dm_id"),
   type: text("type").notNull().default("text"),
   mediaUrl: text("media_url"),
+  edited: boolean("edited").notNull().default(false),
+  replyToId: text("reply_to_id"),
+  replyToSenderName: text("reply_to_sender_name"),
+  replyToContent: text("reply_to_content"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export type GnoseonMessage = typeof messagesTable.$inferSelect;
