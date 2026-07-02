@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { LoginPage } from "@/components/auth/LoginPage";
 import { useAppStore } from "@/store/appStore";
+import { getSocket } from "@/lib/socket";
 import { currentUserData, mockServers, mockUsers, mockDMs, mockNotifications } from "@/lib/mockData";
-import type { User } from "@/types";
+import type { User, Message } from "@/types";
 
 const SESSION_KEY = "gnoseonx_session";
 
@@ -37,9 +38,27 @@ export default function App() {
     setAllUsers,
     setDirectMessages,
     addNotification,
+    addMessage,
   } = useAppStore();
 
   const [isLoading, setIsLoading] = useState(true);
+
+  // Register new_message listener ONCE at the app root — never in child components
+  const addMessageRef = useRef(addMessage);
+  useEffect(() => { addMessageRef.current = addMessage; }, [addMessage]);
+  useEffect(() => {
+    const socket = getSocket();
+    const handler = (data: Message & { createdAt: string }) => {
+      addMessageRef.current({
+        ...data,
+        createdAt: new Date(data.createdAt),
+        reactions: data.reactions ?? [],
+        edited: data.edited ?? false,
+      });
+    };
+    socket.on("new_message", handler);
+    return () => { socket.off("new_message", handler); };
+  }, []);
 
   useEffect(() => {
     const saved = loadSession();
